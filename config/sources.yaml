@@ -1,0 +1,41 @@
+# News sources configuration
+# Add/remove entries to switch topics. Each source needs:
+#   - name: Human-readable source name
+#   - url: The page to scrape
+#   - topic: Topic tag for grouping
+#   - selectors: CSS selectors for extracting article data
+#     - article: Container element for each article
+#     - title: Title element within the article container
+#     - link: Link element (href is extracted automatically)
+#     - summary: Optional short summary/description element
+
+topics:
+  - ai
+
+sources:
+  - name: "TechCrunch AI"
+    url: "https://techcrunch.com/category/artificial-intelligence/"
+    topic: "ai"
+    selectors:
+      article: "div.post-block"
+      title: "a.post-block__title__link"
+      link: "a.post-block__title__link"
+      summary: "div.post-block__content"
+
+  - name: "The Verge AI"
+    url: "https://www.theverge.com/ai-artificial-intelligence"
+    topic: "ai"
+    selectors:
+      article: "div.duet--content-cards--content-card"
+      title: "a h2"
+      link: "a"
+      summary: "p"
+
+  - name: "Ars Technica AI"
+    url: "https://arstechnica.com/ai/"
+    topic: "ai"
+    selectors:
+      article: "li.article"
+      title: "h2 a"
+      link: "h2 a"
+      summary: "p.excerpt"

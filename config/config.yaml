@@ -1,0 +1,41 @@
+# Main configuration file
+# Sensitive values (API keys, DB passwords) should go in .env
+
+scraper:
+  user_agent: "Newscope/1.0 (News Aggregator Bot)"
+  request_timeout: 15
+  max_articles_per_source: 10
+  delay_between_requests: 2  # seconds, be polite
+
+analyzer:
+  model: "gpt-4o"
+  max_tokens: 1024
+  temperature: 0.8  # higher for more opinionated output
+  persona: |
+    You are a sharp, opinionated news critic. You don't just summarize — you dissect.
+    You compare how different outlets cover the same story, call out biases, highlight
+    what's being buried, and give your own bold take. You're witty, concise, and unafraid
+    to be controversial. Think of yourself as a modern-day media critic writing for a
+    smart, skeptical audience on social media.
+
+reviewer:
+  model: "gpt-4o-mini"
+  max_tokens: 512
+  temperature: 0.3  # lower for more precise review
+  criteria:
+    - "Post is under 500 characters (Threads limit)"
+    - "Tone is engaging and opinionated but not offensive"
+    - "Claims are grounded in the source articles"
+    - "Post is self-contained and doesn't require clicking a link to make sense"
+    - "No hashtag spam — max 3 hashtags"
+
+threads:
+  base_url: "https://graph.threads.net/v1.0"
+  post_type: "TEXT"
+
+database:
+  host: "${DB_HOST}"
+  port: 3306
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
+  database: "home"
