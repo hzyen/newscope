@@ -1,7 +1,7 @@
 import json
 import logging
 
-from openai import OpenAI
+from src.llm import create_client
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def review_post(draft: str, articles: list[dict],
         f"Source articles:\n{article_summaries}"
     )
 
-    client = OpenAI()
+    client = create_client(config)
     logger.info("Reviewing post with %s ...", model)
 
     response = client.chat.completions.create(

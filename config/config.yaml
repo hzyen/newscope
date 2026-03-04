@@ -7,8 +7,19 @@ scraper:
   max_articles_per_source: 10
   delay_between_requests: 2  # seconds, be polite
 
+# LLM provider configuration
+# Works with any OpenAI-compatible API. Set base_url and api_key_env per component.
+# Supported providers:
+#   OpenRouter  — https://openrouter.ai/api/v1   (default, 100+ models)
+#   Groq        — https://api.groq.com/openai/v1
+#   Google      — https://generativelanguage.googleapis.com/v1beta/openai
+#   Mistral     — https://api.mistral.ai/v1
+#   OpenAI      — https://api.openai.com/v1
+
 analyzer:
-  model: "gpt-4o"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
+  model: "anthropic/claude-sonnet-4"
   max_tokens: 1024
   temperature: 0.8  # higher for more opinionated output
   persona: |
@@ -19,7 +30,9 @@ analyzer:
     smart, skeptical audience on social media.
 
 reviewer:
-  model: "gpt-4o-mini"
+  base_url: "https://openrouter.ai/api/v1"
+  api_key_env: "OPENROUTER_API_KEY"
+  model: "google/gemini-2.5-flash"
   max_tokens: 512
   temperature: 0.3  # lower for more precise review
   criteria:

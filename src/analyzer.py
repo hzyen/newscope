@@ -1,6 +1,6 @@
 import logging
 
-from openai import OpenAI
+from src.llm import create_client
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def analyze_articles(articles: list[dict], config: dict) -> tuple[str, str]:
         "Now write your critical take as a Threads post."
     )
 
-    client = OpenAI()
+    client = create_client(config)
     logger.info("Analyzing %d articles with %s ...", len(articles), model)
 
     response = client.chat.completions.create(
