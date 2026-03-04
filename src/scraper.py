@@ -88,11 +88,16 @@ def _scrape_full_article(url: str, config: dict) -> str | None:
     return text[:5000] if text else None
 
 
+def _topic_matches(source_topic: str, query_topic: str) -> bool:
+    """Check if a source topic falls under the query topic (prefix match)."""
+    return source_topic == query_topic or source_topic.startswith(query_topic + ".")
+
+
 def scrape_topic(topic: str, scraper_config: dict,
                  max_per_source: int = 10) -> list[Article]:
-    """Scrape all sources for a given topic and store new articles in the DB."""
+    """Scrape all sources matching a topic prefix and store new articles in the DB."""
     sources_cfg = load_sources()
-    sources = [s for s in sources_cfg["sources"] if s["topic"] == topic]
+    sources = [s for s in sources_cfg["sources"] if _topic_matches(s["topic"], topic)]
     delay = scraper_config.get("delay_between_requests", 2)
     collected = []
 

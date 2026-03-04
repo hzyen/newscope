@@ -4,10 +4,11 @@ Newscope — main orchestrator.
 Pipeline: Scrape -> Store -> Analyze -> Review -> Publish -> Store
 
 Usage:
-    python -m src.main                     # run all configured topics
-    python -m src.main --topic ai          # run a specific topic
-    python -m src.main --dry-run           # skip publishing to Threads
-    python -m src.main --migrate           # run DB migrations only
+    python -m src.main                                    # run all configured topics
+    python -m src.main --topic sport.football             # run all football sub-topics
+    python -m src.main --topic sport.football.premier_league  # run just PL
+    python -m src.main --dry-run                          # skip publishing to Threads
+    python -m src.main --migrate                          # run DB migrations only
 """
 
 import argparse
@@ -120,13 +121,18 @@ def main():
         logger.info("Migrations complete.")
         sys.exit(0)
 
-    # Determine which topics to run
+    from src.scraper import load_sources
+    sources_cfg = load_sources()
+    all_topics = sources_cfg.get("topics", [])
+
     if args.topic:
-        topics = [args.topic]
+        prefix = args.topic
+        topics = [t for t in all_topics
+                  if t == prefix or t.startswith(prefix + ".")]
+        if not topics:
+            topics = [prefix]
     else:
-        from src.scraper import load_sources
-        sources_cfg = load_sources()
-        topics = sources_cfg.get("topics", [])
+        topics = all_topics
 
     if not topics:
         logger.error("No topics configured. Check config/sources.yaml")

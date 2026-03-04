@@ -68,13 +68,14 @@ def insert_article(source_name: str, source_url: str, title: str,
 
 
 def get_today_articles(topic: str) -> list[dict]:
+    """Fetch today's articles matching a topic prefix (dot-notation hierarchy)."""
     sql = """
         SELECT * FROM news_articles
-        WHERE topic = %s AND DATE(scraped_at) = CURDATE()
+        WHERE (topic = %s OR topic LIKE %s) AND DATE(scraped_at) = CURDATE()
         ORDER BY scraped_at DESC
     """
     with get_cursor() as cur:
-        cur.execute(sql, (topic,))
+        cur.execute(sql, (topic, topic + ".%"))
         return cur.fetchall()
 
 
