@@ -19,7 +19,7 @@ scraper:
 analyzer:
   base_url: "https://openrouter.ai/api/v1"
   api_key_env: "OPENROUTER_API_KEY"
-  model: "anthropic/claude-sonnet-4"
+  model: "x-ai/grok-3-mini"
   max_tokens: 1024
   temperature: 0.8  # higher for more opinionated output
   persona: |
@@ -32,7 +32,7 @@ analyzer:
 reviewer:
   base_url: "https://openrouter.ai/api/v1"
   api_key_env: "OPENROUTER_API_KEY"
-  model: "google/gemini-2.5-flash"
+  model: "deepseek/deepseek-v3.2"
   max_tokens: 512
   temperature: 0.3  # lower for more precise review
   criteria:
