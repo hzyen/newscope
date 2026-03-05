@@ -5,15 +5,12 @@
 #   --topic sport.football                 -> all football
 #   --topic sport.football.premier_league  -> just Premier League
 #
-# Each source needs:
-#   - name: Human-readable source name
-#   - url: The page to scrape
-#   - topic: Dot-notation topic path
-#   - selectors: CSS selectors for extracting article data
-#     - article: Container element for each article
-#     - title: Title element within the article container
-#     - link: Link element (href is extracted automatically)
-#     - summary: Optional short summary/description element
+# Source types:
+#   rss  (default) — parse RSS/Atom feed, no selectors needed
+#   html           — scrape HTML with CSS selectors
+#
+# Optional per-source:
+#   fetch_full_article: true  — follow article link and scrape full body text
 
 topics:
   - tech.ai
@@ -24,76 +21,39 @@ topics:
 sources:
   # --- tech.ai ---
   - name: "TechCrunch AI"
-    url: "https://techcrunch.com/category/artificial-intelligence/"
+    url: "https://techcrunch.com/category/artificial-intelligence/feed/"
     topic: "tech.ai"
-    selectors:
-      article: "div.post-block"
-      title: "a.post-block__title__link"
-      link: "a.post-block__title__link"
-      summary: "div.post-block__content"
+    type: rss
 
   - name: "The Verge AI"
-    url: "https://www.theverge.com/ai-artificial-intelligence"
+    url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
     topic: "tech.ai"
-    selectors:
-      article: "div.duet--content-cards--content-card"
-      title: "a h2"
-      link: "a"
-      summary: "p"
+    type: rss
 
-  - name: "Ars Technica AI"
-    url: "https://arstechnica.com/ai/"
+  - name: "Ars Technica"
+    url: "https://feeds.arstechnica.com/arstechnica/technology-lab"
     topic: "tech.ai"
-    selectors:
-      article: "li.article"
-      title: "h2 a"
-      link: "h2 a"
-      summary: "p.excerpt"
+    type: rss
 
   # --- sport.football.premier_league ---
   - name: "BBC Premier League"
-    url: "https://www.bbc.com/sport/football/premier-league"
+    url: "https://feeds.bbci.co.uk/sport/football/premier-league/rss.xml"
     topic: "sport.football.premier_league"
-    selectors:
-      article: "div[data-testid='alaska-card']"
-      title: "h2"
-      link: "a"
-      summary: "p"
+    type: rss
 
-  - name: "Sky Sports Premier League"
-    url: "https://www.skysports.com/premier-league-news"
+  - name: "Guardian Football"
+    url: "https://www.theguardian.com/football/premierleague/rss"
     topic: "sport.football.premier_league"
-    selectors:
-      article: "div.news-list__item"
-      title: "h4.news-list__headline"
-      link: "a.news-list__headline-link"
-      summary: "p.news-list__snippet"
-
-  - name: "Guardian Premier League"
-    url: "https://www.theguardian.com/football/premierleague"
-    topic: "sport.football.premier_league"
-    selectors:
-      article: "div.dcr-1yhtqw5"
-      title: "h3"
-      link: "a"
-      summary: "p"
+    type: rss
 
   # --- sport.football.la_liga ---
   - name: "BBC La Liga"
-    url: "https://www.bbc.com/sport/football/spanish-la-liga"
+    url: "https://feeds.bbci.co.uk/sport/football/spanish-la-liga/rss.xml"
     topic: "sport.football.la_liga"
-    selectors:
-      article: "div[data-testid='alaska-card']"
-      title: "h2"
-      link: "a"
-      summary: "p"
+    type: rss
 
   # --- sport.football.champions_league ---
   - name: "BBC Champions League"
-    url: "https://www.bbc.com/sport/football/champions-league"
+    url: "https://feeds.bbci.co.uk/sport/football/champions-league/rss.xml"
     topic: "sport.football.champions_league"
-    selectors:
-      article: "div[data-testid='alaska-card']"
-      title: "h2"
-      link: "a"
-      summary: "p"
+    type: rss
