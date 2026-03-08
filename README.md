@@ -70,6 +70,29 @@ python -m src.threads_client recent --limit 20
 
 `THREADS_USER_ID` is optional — if not set in `.env`, the client automatically resolves it via the `/me` API endpoint using your access token.
 
+### Threads Token Setup
+
+The Threads API uses OAuth 2.0. You need to authorize once in a browser, then the token can be refreshed automatically forever.
+
+```bash
+# One-time: interactive OAuth setup (opens browser, saves long-lived token to .env)
+python -m src.threads_client auth
+
+# Refresh the token before it expires (~60 days). Cron this!
+python -m src.threads_client refresh-token
+
+# Refresh without saving to .env (print only)
+python -m src.threads_client refresh-token --no-save
+```
+
+The `auth` command walks you through the full flow:
+1. Prints a URL to open in your browser
+2. You authorize and paste back the code
+3. Exchanges code → short-lived token → long-lived token
+4. Saves `THREADS_ACCESS_TOKEN` and `THREADS_USER_ID` to `.env`
+
+After the initial setup, schedule `refresh-token` to run every ~50 days to keep the token alive indefinitely.
+
 ### ThreadsClient API
 
 When imported as a module, `ThreadsClient` provides:
@@ -86,6 +109,11 @@ When imported as a module, `ThreadsClient` provides:
 | `get_replies(post_id)` | Get replies to a post |
 | `get_post_insights(post_id)` | Get engagement metrics (likes, replies, reposts, quotes, views) |
 | `get_user_insights()` | Get account-level insights |
+| `get_auth_url()` | Build the OAuth authorization URL (static) |
+| `exchange_code(code)` | Exchange auth code for short-lived token (static) |
+| `exchange_for_long_lived(token)` | Convert short-lived → long-lived token (static) |
+| `refresh_long_lived_token()` | Refresh a long-lived token for another ~60 days (static) |
+| `save_token_to_env(token)` | Persist token to `.env` file (static) |
 
 ## Switching Topics
 
@@ -94,8 +122,11 @@ Edit `config/sources.yaml` to add new sources and topics. The pipeline is topic-
 ## Cron Setup
 
 ```bash
-# Run daily at 9am
+# Run pipeline daily at 9am
 0 9 * * * cd /path/to/newscope && /path/to/python -m src.main >> /var/log/newscope.log 2>&1
+
+# Refresh Threads token on the 1st and 15th of each month
+0 0 1,15 * * cd /path/to/newscope && /path/to/python -m src.threads_client refresh-token >> /var/log/newscope-token.log 2>&1
 ```
 
 ## Project Structure

@@ -7,6 +7,8 @@ Can be imported as a module or used as a CLI tool:
     python -m src.threads_client me
     python -m src.threads_client profile
     python -m src.threads_client recent
+    python -m src.threads_client auth              # one-time OAuth setup
+    python -m src.threads_client refresh-token     # refresh long-lived token (cron this)
 
     # Legacy (still works):
     python -m src.threads_client --text "Hello from Newscope!"
@@ -14,6 +16,12 @@ Can be imported as a module or used as a CLI tool:
 Threads Publishing Flow:
     1. Create a media container (POST /{user_id}/threads)
     2. Publish the container (POST /{user_id}/threads_publish)
+
+Token Lifecycle (automated after first auth):
+    1. [manual]  Browser auth → authorization code
+    2. [auto]    Code → short-lived token (~1h)
+    3. [auto]    Short-lived → long-lived token (~60 days)
+    4. [auto]    Refresh long-lived token before expiry (cron every ~50 days)
 """
 
 import os
@@ -22,13 +30,36 @@ import time
 import json
 import logging
 import argparse
+from pathlib import Path
+from urllib.parse import urlencode
 
 import requests
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://graph.threads.net/v1.0"
+OAUTH_BASE_URL = "https://threads.net"
+GRAPH_BASE_URL = "https://graph.threads.net"
+
+DEFAULT_SCOPES = (
+    "threads_basic,"
+    "threads_content_publish,"
+    "threads_manage_insights,"
+    "threads_manage_replies,"
+    "threads_read_replies"
+)
+
+
+def _find_env_file() -> Path:
+    """Walk up from cwd to find .env file."""
+    candidate = Path.cwd()
+    for _ in range(5):
+        env_path = candidate / ".env"
+        if env_path.exists():
+            return env_path
+        candidate = candidate.parent
+    return Path.cwd() / ".env"
 
 
 class ThreadsClient:
@@ -63,6 +94,100 @@ class ThreadsClient:
         resp = requests.request(method, self._url(path), timeout=30, **kwargs)
         resp.raise_for_status()
         return resp.json()
+
+    # ------------------------------------------------------------- OAuth/token
+    @staticmethod
+    def get_auth_url(app_id: str | None = None,
+                     redirect_uri: str = "https://localhost/callback",
+                     scopes: str = DEFAULT_SCOPES) -> str:
+        """Build the browser URL for the one-time OAuth authorization."""
+        app_id = app_id or os.getenv("THREADS_APP_ID")
+        if not app_id:
+            raise ValueError("THREADS_APP_ID is required")
+        params = {
+            "client_id": app_id,
+            "redirect_uri": redirect_uri,
+            "scope": scopes,
+            "response_type": "code",
+        }
+        return f"{OAUTH_BASE_URL}/oauth/authorize?{urlencode(params)}"
+
+    @staticmethod
+    def exchange_code(code: str,
+                      redirect_uri: str = "https://localhost/callback",
+                      app_id: str | None = None,
+                      app_secret: str | None = None) -> dict:
+        """Exchange an authorization code for a short-lived access token (~1h)."""
+        app_id = app_id or os.getenv("THREADS_APP_ID")
+        app_secret = app_secret or os.getenv("THREADS_APP_SECRET")
+        if not app_id or not app_secret:
+            raise ValueError("THREADS_APP_ID and THREADS_APP_SECRET are required")
+
+        resp = requests.post(
+            f"{GRAPH_BASE_URL}/oauth/access_token",
+            data={
+                "client_id": app_id,
+                "client_secret": app_secret,
+                "grant_type": "authorization_code",
+                "redirect_uri": redirect_uri,
+                "code": code,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    @staticmethod
+    def exchange_for_long_lived(short_lived_token: str,
+                                app_secret: str | None = None) -> dict:
+        """Exchange a short-lived token for a long-lived token (~60 days).
+
+        Returns dict with 'access_token', 'token_type', 'expires_in'.
+        """
+        app_secret = app_secret or os.getenv("THREADS_APP_SECRET")
+        if not app_secret:
+            raise ValueError("THREADS_APP_SECRET is required")
+
+        resp = requests.get(
+            f"{GRAPH_BASE_URL}/access_token",
+            params={
+                "grant_type": "th_exchange_token",
+                "client_secret": app_secret,
+                "access_token": short_lived_token,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    @staticmethod
+    def refresh_long_lived_token(token: str | None = None) -> dict:
+        """Refresh a long-lived token — returns a new one valid for ~60 days.
+
+        Must be called before the current token expires.
+        Returns dict with 'access_token', 'token_type', 'expires_in'.
+        """
+        token = token or os.getenv("THREADS_ACCESS_TOKEN")
+        if not token:
+            raise ValueError("No token to refresh")
+
+        resp = requests.get(
+            f"{GRAPH_BASE_URL}/refresh_access_token",
+            params={
+                "grant_type": "th_refresh_token",
+                "access_token": token,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    @staticmethod
+    def save_token_to_env(token: str, env_path: str | Path | None = None):
+        """Persist a new token to the .env file."""
+        env_path = str(env_path or _find_env_file())
+        set_key(env_path, "THREADS_ACCESS_TOKEN", token)
+        logger.info("Token saved to %s", env_path)
 
     # -------------------------------------------------------------- identity
     def get_me(self) -> dict:
@@ -258,6 +383,73 @@ def cmd_recent(args):
     print(f"\n{len(posts)} post(s)")
 
 
+def cmd_auth(args):
+    """Interactive one-time OAuth setup: browser auth \u2192 long-lived token \u2192 .env."""
+    redirect_uri = args.redirect_uri
+
+    print("=== Threads OAuth Setup ===\n")
+    auth_url = ThreadsClient.get_auth_url(redirect_uri=redirect_uri)
+    print(f"1. Open this URL in your browser:\n\n   {auth_url}\n")
+    print(f"2. Authorize the app, then copy the 'code' parameter from the redirect URL.")
+    print(f"   (The redirect will go to {redirect_uri}?code=XXXXXX#_)\n")
+
+    code = input("Paste the authorization code here: ").strip().rstrip("#_")
+    if not code:
+        print("No code provided, aborting.")
+        sys.exit(1)
+
+    print("\nExchanging code for short-lived token...")
+    short_lived = ThreadsClient.exchange_code(code, redirect_uri=redirect_uri)
+    sl_token = short_lived["access_token"]
+    print(f"  Short-lived token obtained (expires in {short_lived.get('expires_in', '?')}s)")
+
+    print("Exchanging for long-lived token...")
+    long_lived = ThreadsClient.exchange_for_long_lived(sl_token)
+    ll_token = long_lived["access_token"]
+    expires_days = long_lived.get("expires_in", 0) // 86400
+    print(f"  Long-lived token obtained (expires in ~{expires_days} days)")
+
+    client = ThreadsClient(access_token=ll_token)
+    me = client.get_me()
+    user_id = me["id"]
+    username = me.get("username", "unknown")
+    print(f"  Authenticated as: @{username} (ID: {user_id})")
+
+    if not args.no_save:
+        env_path = _find_env_file()
+        ThreadsClient.save_token_to_env(ll_token, env_path)
+        set_key(str(env_path), "THREADS_USER_ID", user_id)
+        print(f"\n  Saved THREADS_ACCESS_TOKEN and THREADS_USER_ID to {env_path}")
+
+    print("\nDone! Set up a cron to keep the token alive:")
+    print("  0 0 1,15 * * cd /path/to/newscope && python -m src.threads_client refresh-token")
+
+
+def cmd_refresh_token(args):
+    """Refresh the long-lived token and save to .env. Designed for cron."""
+    current_token = os.getenv("THREADS_ACCESS_TOKEN")
+    if not current_token:
+        print("Error: THREADS_ACCESS_TOKEN not set")
+        sys.exit(1)
+
+    print("Refreshing long-lived token...")
+    result = ThreadsClient.refresh_long_lived_token(current_token)
+    new_token = result["access_token"]
+    expires_days = result.get("expires_in", 0) // 86400
+    print(f"  New token obtained (expires in ~{expires_days} days)")
+
+    client = ThreadsClient(access_token=new_token)
+    me = client.get_me()
+    print(f"  Token valid for: @{me.get('username', '?')} (ID: {me['id']})")
+
+    if not args.no_save:
+        env_path = _find_env_file()
+        ThreadsClient.save_token_to_env(new_token, env_path)
+        print(f"  Saved to {env_path}")
+
+    print("Done.")
+
+
 def main():
     load_dotenv()
     logging.basicConfig(
@@ -295,6 +487,18 @@ def main():
     p_recent.add_argument("--limit", type=int, default=10,
                           help="Number of posts to fetch (default: 10)")
 
+    p_auth = sub.add_parser("auth",
+                            help="One-time OAuth setup (browser \u2192 long-lived token)")
+    p_auth.add_argument("--redirect-uri", default="https://localhost/callback",
+                        help="OAuth redirect URI (must match app settings)")
+    p_auth.add_argument("--no-save", action="store_true",
+                        help="Don't save token to .env (print only)")
+
+    p_refresh = sub.add_parser("refresh-token",
+                               help="Refresh long-lived token (cron this)")
+    p_refresh.add_argument("--no-save", action="store_true",
+                           help="Don't save token to .env (print only)")
+
     args = parser.parse_args()
 
     commands = {
@@ -303,6 +507,8 @@ def main():
         "me": cmd_me,
         "profile": cmd_profile,
         "recent": cmd_recent,
+        "auth": cmd_auth,
+        "refresh-token": cmd_refresh_token,
     }
 
     handler = commands.get(args.command)
